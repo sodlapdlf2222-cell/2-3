@@ -76,10 +76,7 @@
   }
   .result .big { font-size: 18px; font-weight: 700; color: #d9741f; }
   .result .placeholder { color: #bbb; font-size: 14px; }
-  .error { color: #c0392b; font-size: 14px; }
-  /* ✅수정3: 경고 메시지 스타일 추가 */
-  .warn { color: #c0392b; font-size: 13px; margin-top: 6px; }
-  /* ✅수정3: 기준 데이터 박스 스타일 추가 */
+  .error { color: #c0392b; font-size: 14px; font-weight: bold; }
   .standard {
     margin-top: 18px;
     padding: 14px 16px;
@@ -103,7 +100,6 @@
 
     <div class="field">
       <label for="ingredient">재료 선택</label>
-      <!-- ✅수정1: 재료별 기준 단위를 괄호로 표시 -->
       <select id="ingredient" onchange="syncUnit()">
         <option value="sugar">설탕 (무게·g)</option>
         <option value="salt">소금 (무게·g)</option>
@@ -130,7 +126,6 @@
       <span class="placeholder">재료와 수치를 입력하고 변환하기를 눌러주세요.</span>
     </div>
 
-    <!-- ✅수정3: 변환 기준 데이터 화면 표시 -->
     <div class="standard">
       📏 <b>변환 기준</b> (평균값)<br>
       1큰술 = 15ml · 1작은술 = 5ml · 1컵(종이컵) = 180ml<br>
@@ -152,15 +147,14 @@
     water: { name: "물",     perTbsp: 15, unit: "ml" }
   };
 
-  const TSP_PER_TBSP = 3;    // 1큰술 = 3작은술
-  const TBSP_ML = 15;        // 1큰술 부피 ≈ 15ml
-  const CUP_ML = 180;        // 종이컵 1컵 ≈ 180ml
+  const TSP_PER_TBSP = 3;    
+  const TBSP_ML = 15;        
+  const CUP_ML = 180;        
 
   function fmt(n) {
     return Number.isInteger(n) ? n.toString() : n.toFixed(1);
   }
 
-  // ✅수정1: 재료를 바꾸면 단위 선택을 기준 단위로 자동 맞춤
   function syncUnit() {
     const key = document.getElementById("ingredient").value;
     document.getElementById("unit").value = DATA[key].unit;
@@ -173,13 +167,13 @@
     const resultEl = document.getElementById("result");
     const info = DATA[key];
 
-    // 입력 검증
+    // 1. 입력값 검증
     if (isNaN(amount) || amount <= 0) {
       resultEl.innerHTML = '<span class="error">0보다 큰 숫자를 입력해주세요.</span>';
       return;
     }
 
-    // ✅수정1: 단위 검증 — 재료 기준 단위와 다르면 경고하고 중단
+    // 2. 단위 일치 여부 검증 (엔터키 입력 시에도 작동)
     if (inputUnit !== info.unit) {
       resultEl.innerHTML =
         '<span class="error">⚠️ ' + info.name + '은(는) \'' + info.unit +
@@ -187,6 +181,7 @@
       return;
     }
 
+    // 3. 계산 및 결과 출력
     const tbsp = amount / info.perTbsp;
     const tsp  = tbsp * TSP_PER_TBSP;
     const cup  = (tbsp * TBSP_ML) / CUP_ML;
@@ -198,14 +193,19 @@
       '<div>종이컵 약 <b>' + fmt(cup) + '</b>컵</div>';
   }
 
-  // ✅수정2: Enter 키로도 변환 실행 (기본 동작 차단 추가)
-document.getElementById("amount").addEventListener("keydown", function(e) {
-  if (e.key === "Enter") {
-    e.preventDefault();   // ← 폼 제출·새로고침 같은 기본 동작 막기
-    convert();            // 검증 포함된 변환 함수 실행
+  // 엔터키 이벤트 리스너 함수
+  function handleEnter(e) {
+    if (e.key === "Enter") {
+      e.preventDefault(); // 기본 동작 방지
+      convert();          // 변환 실행 (검증 로직 포함)
+    }
   }
-});
-  // 처음 화면이 뜰 때 재료 기준 단위로 맞춰두기
+
+  // 입력창과 단위 선택창 모두에 엔터키 이벤트 추가
+  document.getElementById("amount").addEventListener("keydown", handleEnter);
+  document.getElementById("unit").addEventListener("keydown", handleEnter);
+
+  // 초기화
   syncUnit();
 </script>
 </body>
