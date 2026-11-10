@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>요리 계량 변환기</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Malgun Gothic", "맑은 고딕", sans-serif;
+    background: linear-gradient(135deg, #ffe9d6 0%, #fff6ec 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 40px 16px;
+  }
+  .card {
+    background: #fff;
+    width: 100%;
+    max-width: 440px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+    padding: 32px 28px;
+  }
+  /* 상단 */
+  .header { text-align: center; margin-bottom: 28px; }
+  .header .icon { font-size: 52px; line-height: 1; }
+  .header h1 { font-size: 24px; color: #d9741f; margin-top: 8px; }
+  .header p { font-size: 13px; color: #999; margin-top: 6px; }
+  /* 중간 입력 영역 */
+  .field { margin-bottom: 18px; }
+  .field label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 7px;
+  }
+  select, input[type="number"] {
+    width: 100%;
+    padding: 12px 14px;
+    font-size: 15px;
+    border: 1.5px solid #e3d3c2;
+    border-radius: 10px;
+    background: #fffdfb;
+    outline: none;
+  }
+  select:focus, input:focus { border-color: #f0a35e; }
+  .row { display: flex; gap: 10px; }
+  .row .amount { flex: 2; }
+  .row .unit { flex: 1; }
+  button {
+    width: 100%;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    background: #f0a35e;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    margin-top: 6px;
+    transition: background 0.2s;
+  }
+  button:hover { background: #e08a3e; }
+  /* 하단 결과 영역 */
+  .result {
+    margin-top: 24px;
+    padding: 20px;
+    background: #fff6ec;
+    border: 1.5px dashed #f0a35e;
+    border-radius: 12px;
+    min-height: 70px;
+    text-align: center;
+    color: #a05a1a;
+    font-size: 15px;
+    line-height: 1.9;
+  }
+  .result .big { font-size: 18px; font-weight: 700; color: #d9741f; }
+  .result .placeholder { color: #bbb; font-size: 14px; }
+  .error { color: #c0392b; font-size: 14px; }
+  .note { margin-top: 18px; font-size: 11px; color: #bbb; text-align: center; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <!-- 상단: 서비스 이름 + 아이콘 -->
+    <div class="header">
+      <div class="icon">🥄</div>
+      <h1>요리 계량 변환기</h1>
+      <p>g · ml 을 큰술 · 작은술 · 컵 단위로 변환해요</p>
+    </div>
+
+    <!-- 중간: 입력 영역 -->
+    <div class="field">
+      <label for="ingredient">재료 선택</label>
+      <select id="ingredient">
+        <option value="sugar">설탕</option>
+        <option value="salt">소금</option>
+        <option value="flour">밀가루</option>
+        <option value="soy">간장</option>
+        <option value="water">물</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="amount">수치 입력</label>
+      <div class="row">
+        <input class="amount" type="number" id="amount" placeholder="예: 24" min="0" step="any">
+        <select class="unit" id="unit">
+          <option value="g">g</option>
+          <option value="ml">ml</option>
+        </select>
+      </div>
+    </div>
+
+    <button onclick="convert()">변환하기</button>
+
+    <!-- 하단: 결과 영역 -->
+    <div class="result" id="result">
+      <span class="placeholder">재료와 수치를 입력하고 변환하기를 눌러주세요.</span>
+    </div>
+
+    <p class="note">
+      ※ 재료별 평균 밀도(고정 기준값)를 사용합니다.<br>
+      가루의 굵기·수분 함량에 따라 실제 무게는 달라질 수 있어요.
+    </p>
+  </div>
+
+<script>
+  /* ---- 단위 변환 기준 데이터 (기획서 기준) ---- */
+  // 1큰술당 g 또는 ml 값 / 해당 재료가 쓰는 입력 단위
+  const DATA = {
+    sugar: { name: "설탕",   perTbsp: 12, unit: "g"  }, // 설탕 1큰술 = 12g
+    salt:  { name: "소금",   perTbsp: 15, unit: "g"  }, // 소금 1큰술 = 15g
+    flour: { name: "밀가루", perTbsp: 8,  unit: "g"  }, // 밀가루 1큰술 = 8g
+    soy:   { name: "간장",   perTbsp: 15, unit: "ml" }, // 간장 1큰술 = 15ml
+    water: { name: "물",     perTbsp: 15, unit: "ml" }  // 물 1큰술 = 15ml
+  };
+
+  const TSP_PER_TBSP = 3;    // 1큰술 = 3작은술
+  const TBSP_ML = 15;        // 1큰술 부피 ≈ 15ml
+  const CUP_ML = 180;        // 종이컵 1컵 ≈ 180ml
+
+  // 소수점 정리: 정수면 정수로, 아니면 소수 1자리
+  function fmt(n) {
+    return Number.isInteger(n) ? n.toString() : n.toFixed(1);
+  }
+
+  function convert() {
+    const key = document.getElementById("ingredient").value;
+    const amount = parseFloat(document.getElementById("amount").value);
+    const inputUnit = document.getElementById("unit").value;
+    const resultEl = document.getElementById("result");
+    const info = DATA[key];
+
+    // 입력 검증
+    if (isNaN(amount) || amount <= 0) {
+      resultEl.innerHTML = '<span class="error">0보다 큰 숫자를 입력해주세요.</span>';
+      return;
+    }
+
+    // 입력 단위와 재료 기준 단위 안내 (g/ml를 섞어도 수치 자체로 계산)
+    // 큰술 수 = 입력량 / 1큰술당 기준값
+    const tbsp = amount / info.perTbsp;        // 큰술
+    const tsp  = tbsp * TSP_PER_TBSP;          // 작은술
+    const cup  = (tbsp * TBSP_ML) / CUP_ML;    // 컵 (부피 환산)
+
+    resultEl.innerHTML =
+      '<div><span class="big">' + info.name + ' ' + fmt(amount) + inputUnit + '</span> 은(는)</div>' +
+      '<div>큰술 약 <b>' + fmt(tbsp) + '</b>스푼</div>' +
+      '<div>작은술 약 <b>' + fmt(tsp) + '</b>스푼</div>' +
+      '<div>종이컵 약 <b>' + fmt(cup) + '</b>컵</div>';
+  }
+</script>
+</body>
+</html>
